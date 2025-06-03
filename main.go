@@ -85,7 +85,7 @@ func getScreenshotHandler(ctx context.Context, request mcp.CallToolRequest) (*mc
 	}
 
 	// Add a small delay to ensure all dynamic content is loaded
-	time.Sleep(2 * time.Second)
+	time.Sleep(1 * time.Second)
 
 	screenshotBytes, err := page.Screenshot(playwright.PageScreenshotOptions{
 		FullPage: playwright.Bool(true),
