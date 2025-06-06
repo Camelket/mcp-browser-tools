@@ -46,6 +46,27 @@ func main() {
 		),
 	), GetPageSummaryHandler(summaryTool))
 
+	// Add get_html tool
+	s.AddTool(mcp.NewTool("get_html",
+		mcp.WithDescription("Returns the HTML content of the specified URL."),
+		mcp.WithString("url",
+			mcp.Required(),
+			mcp.Description("The URL of the page to get HTML from."),
+		),
+	), GetHTMLHandler(pwIntegration))
+
+	// Add get_screenshot tool
+	s.AddTool(mcp.NewTool("get_screenshot",
+		mcp.WithDescription("Returns a base64 encoded screenshot of the specified URL."),
+		mcp.WithString("url",
+			mcp.Required(),
+			mcp.Description("The URL of the page to get a screenshot from."),
+		),
+		mcp.WithBoolean("full_page",
+			mcp.Description("Whether to take a full page screenshot. Defaults to false."),
+		),
+	), GetScreenshotHandler(pwIntegration))
+
 	// Start the stdio server
 	if err := server.ServeStdio(s); err != nil {
 		logger.Error("Server error", "error", err)
@@ -70,5 +91,61 @@ func GetPageSummaryHandler(st *summary_tool.SummaryTool) func(ctx context.Contex
 
 		// Use mcp.NewToolResultText or a similar function
 		return mcp.NewToolResultText(fmt.Sprintf("URL: %s\nHTML: %s\nScreenshot: %s\nLinks: %v", pageSummary.URL, pageSummary.HTML, encodedScreenshot, pageSummary.Links)), nil
+	}
+}
+
+// GetHTMLHandler handles the get_html MCP tool call.
+func GetHTMLHandler(pi *playwright_integration.PlaywrightIntegration) func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		url, err := request.RequireString("url")
+		if err != nil {
+			return nil, fmt.Errorf("missing or invalid 'url' argument: %w", err)
+		}
+
+		page, err := pi.NavigateToURL(ctx, url, nil, 0)
+		if err != nil {
+			return nil, fmt.Errorf("failed to navigate to URL: %w", err)
+		}
+		defer page.Close()
+
+		htmlContent, err := page.Content()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get HTML content: %w", err)
+		}
+
+		return mcp.NewToolResultText(htmlContent), nil
+	}
+}
+
+// GetScreenshotHandler handles the get_screenshot MCP tool call.
+func GetScreenshotHandler(pi *playwright_integration.PlaywrightIntegration) func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		url, err := request.RequireString("url")
+		if err != nil {
+			return nil, fmt.Errorf("missing or invalid 'url' argument: %w", err)
+		}
+
+		fullPage := false // Default value
+		fullPageStr, err := request.RequireString("full_page")
+		if err == nil { // Parameter was provided
+			if fullPageStr == "true" {
+				fullPage = true
+			}
+		}
+
+		page, err := pi.NavigateToURL(ctx, url, nil, 0)
+		if err != nil {
+			return nil, fmt.Errorf("failed to navigate to URL: %w", err)
+		}
+		defer page.Close()
+
+		screenshotBytes, err := pi.CaptureScreenshot(ctx, page, playwright_integration.PageScreenshotOptions{FullPage: fullPage})
+		if err != nil {
+			return nil, fmt.Errorf("failed to capture screenshot: %w", err)
+		}
+
+		encodedScreenshot := base64.StdEncoding.EncodeToString(screenshotBytes)
+
+		return mcp.NewToolResultText(encodedScreenshot), nil
 	}
 }
