@@ -95,25 +95,27 @@ func (pi *PlaywrightIntegration) NewPage(ctx context.Context) (playwright.Page, 
 }
 
 // NavigateToURL navigates to a given URL with configurable options.
-func (pi *PlaywrightIntegration) NavigateToURL(ctx context.Context, url string, options *playwright.PageGotoOptions) (playwright.Page, error) {
-	pi.logger.Info("Navigating to URL", "url", url)
+func (pi *PlaywrightIntegration) NavigateToURL(ctx context.Context, url string, options *playwright.PageGotoOptions, timeoutSeconds float64) (playwright.Page, error) {
+	pi.logger.Info("Navigating to URL", "url", url, "timeout", timeoutSeconds)
 
 	page, err := pi.NewPage(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new page: %w", err)
 	}
 
-	// Dereference options if it's not nil
-	if options != nil {
-		if _, err = page.Goto(url, *options); err != nil {
-			page.Close() // Close page if navigation fails
-			return nil, fmt.Errorf("failed to navigate to %s: %w", url, err)
-		}
-	} else {
-		if _, err = page.Goto(url); err != nil {
-			page.Close() // Close page if navigation fails
-			return nil, fmt.Errorf("failed to navigate to %s: %w", url, err)
-		}
+	// Set default timeout if not provided or if options is nil
+	if options == nil {
+		options = &playwright.PageGotoOptions{}
+	}
+	if timeoutSeconds > 0 {
+		options.Timeout = playwright.Float(timeoutSeconds * 1000) // Convert seconds to milliseconds
+	}
+	// If timeoutSeconds is 0, Playwright's default timeout will be used.
+
+	pi.logger.Debug("Calling page.Goto", "url", url, "options", options)
+	if _, err = page.Goto(url, *options); err != nil {
+		page.Close() // Close page if navigation fails
+		return nil, fmt.Errorf("failed to navigate to %s: %w", url, err)
 	}
 
 	pi.logger.Info("Successfully navigated to URL", "url", url)

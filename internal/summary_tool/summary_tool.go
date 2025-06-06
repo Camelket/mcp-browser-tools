@@ -55,7 +55,10 @@ func (st *SummaryTool) CapturePageSummary(ctx context.Context, url string) (*Pag
 		return nil, fmt.Errorf("failed to set up network interception: %w", err)
 	}
 
-	if _, err := page.Goto(url); err != nil {
+	// Use the PlaywrightIntegration's NavigateToURL function to leverage its timeout and logging.
+	// Temporarily setting a 60-second timeout for debugging.
+	page, err = st.playwright.NavigateToURL(ctx, url, nil, 60.0) // 60 seconds timeout
+	if err != nil {
 		st.logger.Error("Failed to navigate to URL", "url", url, "error", err)
 		return nil, fmt.Errorf("failed to navigate to %s: %w", url, err)
 	}
